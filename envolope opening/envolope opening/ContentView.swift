@@ -62,22 +62,28 @@ struct EnvelopeView: View {
     
     var body: some View {
         ZStack {
-                    // Envelope base
-                    Rectangle()
-                        .fill(LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 0.4, green: 0.5, blue: 0.3), // Olive green
-                                Color(red: 0.6, green: 0.8, blue: 0.2)  // Yellow-green
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ))
-                        .frame(width: 280, height: 180)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+            // Sliding content that comes out when opening (behind envelope)
+            SlidingContent(isOpen: isOpen)
+                .zIndex(0) // Behind the envelope
+            
+            // Envelope base
+            Rectangle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.4, green: 0.5, blue: 0.3), // Olive green
+                        Color(red: 0.6, green: 0.8, blue: 0.2)  // Yellow-green
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+                .frame(width: 280, height: 180)
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+                .zIndex(1) // Above sliding content
             
             // Envelope flap
             EnvelopeFlap(isOpen: isOpen, dragOffset: dragOffset)
+                .zIndex(2) // Above envelope body
             
             // Triangular tab detail
             if !isOpen {
@@ -86,15 +92,7 @@ struct EnvelopeView: View {
                     .frame(width: 20, height: 12)
                     .position(x: 150, y: 90)
                     .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 0.5)
-            }
-            
-            // Inner content (visible when open)
-            if isOpen {
-                EnvelopeContent()
-                    .transition(.asymmetric(
-                        insertion: .scale.combined(with: .opacity),
-                        removal: .scale.combined(with: .opacity)
-                    ))
+                    .zIndex(3) // Above everything
             }
         }
     }
@@ -147,6 +145,19 @@ struct EnvelopeContent: View {
             .cornerRadius(4)
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
             .offset(y: 10)
+    }
+}
+
+struct SlidingContent: View {
+    let isOpen: Bool
+    
+    var body: some View {
+        Rectangle()
+            .fill(Color.blue)
+            .frame(width: 180, height: 100)
+            .cornerRadius(8)
+            .position(x: 150, y: isOpen ? 50 : 140) // Hidden behind envelope when closed
+            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
     }
 }
 
