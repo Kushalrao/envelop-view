@@ -12,17 +12,13 @@ struct ContentView: View {
     @State private var isEnvelopeOpen = false
     @State private var dragOffset: CGFloat = 0
     @State private var currentRotation: Double = 0
-    @State private var hasVibrated = false
+    @State private var lastHapticProgress: Double = 0
     
     var body: some View {
         ZStack {
-            // Background
-            LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            // Background - Explicitly white to override system theme
+            Color.white
+                .ignoresSafeArea()
             
         VStack {
                 Spacer()
@@ -41,11 +37,18 @@ struct ContentView: View {
                                         
                                         if value.translation.height < 0 {
                                             // Swiping up - opening
-                                            if !hasVibrated && dragProgress > 0.3 {
-                                                // Add haptic feedback when starting to open
-                                                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                                                impactFeedback.impactOccurred()
-                                                hasVibrated = true
+                                            
+                                            // Continuous haptic feedback during opening
+                                            if dragProgress > 0.1 {
+                                                let hapticInterval = 0.1 // Trigger haptic every 10% progress
+                                                let currentHapticStep = floor(dragProgress / hapticInterval)
+                                                let lastHapticStep = floor(lastHapticProgress / hapticInterval)
+                                                
+                                                if currentHapticStep > lastHapticStep {
+                                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                                    impactFeedback.impactOccurred()
+                                                    lastHapticProgress = dragProgress
+                                                }
                                             }
                                             
                                             // Real-time rotation during swipe up
@@ -61,6 +64,19 @@ struct ContentView: View {
                                         } else {
                                             // Swiping down - closing
                                             if isEnvelopeOpen {
+                                                // Continuous haptic feedback during closing
+                                                if dragProgress > 0.1 {
+                                                    let hapticInterval = 0.1 // Trigger haptic every 10% progress
+                                                    let currentHapticStep = floor(dragProgress / hapticInterval)
+                                                    let lastHapticStep = floor(lastHapticProgress / hapticInterval)
+                                                    
+                                                    if currentHapticStep > lastHapticStep {
+                                                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                                        impactFeedback.impactOccurred()
+                                                        lastHapticProgress = dragProgress
+                                                    }
+                                                }
+                                                
                                                 // Real-time rotation during swipe down
                                                 currentRotation = max(maxRotation - (dragProgress * maxRotation), 0)
                                                 
@@ -69,7 +85,7 @@ struct ContentView: View {
                                                     withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                                         isEnvelopeOpen = false
                                                         currentRotation = 0
-                                                        hasVibrated = false
+                                                        lastHapticProgress = 0
                                                     }
                                                 }
                                             }
@@ -79,11 +95,11 @@ struct ContentView: View {
                                         // Reset states when gesture ends
                                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                             dragOffset = 0
+                                            lastHapticProgress = 0
                                             if isEnvelopeOpen {
                                                 currentRotation = 160
                                             } else {
                                                 currentRotation = 0
-                                                hasVibrated = false
                                             }
                                         }
                                     }
