@@ -130,8 +130,8 @@ struct EnvelopeView: View {
             Rectangle()
                 .fill(LinearGradient(
                     gradient: Gradient(colors: [
-                        Color(red: 0.4, green: 0.5, blue: 0.3), // Olive green
-                        Color(red: 0.6, green: 0.8, blue: 0.2)  // Yellow-green
+                        Color(red: 0.9, green: 0.4, blue: 0.2), // Orange-red
+                        Color(red: 1.0, green: 0.5, blue: 0.2)  // Vibrant orange
                     ]),
                     startPoint: .top,
                     endPoint: .bottom
@@ -144,7 +144,7 @@ struct EnvelopeView: View {
             // Triangular tab detail
             if !isOpen {
                 Triangle()
-                    .fill(Color(red: 0.9, green: 0.95, blue: 0.85))
+                    .fill(Color(red: 0.98, green: 0.98, blue: 0.98))
                     .frame(width: 20, height: 12)
                     .position(x: 150, y: 90)
                     .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 0.5)
@@ -160,15 +160,15 @@ struct EnvelopeFlap: View {
     let currentRotation: Double
     
     var body: some View {
-        Triangle()
-            .fill(LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.35, green: 0.45, blue: 0.25), // Darker olive green
-                    Color(red: 0.5, green: 0.7, blue: 0.15)    // Darker yellow-green
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            ))
+                Triangle()
+                    .fill(LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.95, green: 0.2, blue: 0.2), // Bright red
+                            Color(red: 0.9, green: 0.4, blue: 0.2)    // Orange-red
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
             .frame(width: 260, height: 130)
             .position(x: 150, y: 75)
             .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
