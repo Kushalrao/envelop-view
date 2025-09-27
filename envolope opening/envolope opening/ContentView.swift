@@ -126,16 +126,16 @@ struct EnvelopeView: View {
             EnvelopeFlap(isOpen: isOpen, dragOffset: dragOffset, currentRotation: currentRotation)
                 .zIndex(isOpen ? 0 : 2) // Back when open, front when closed
             
-            // Envelope base (conditional top layer)
-            Rectangle()
-                .fill(LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.9, green: 0.4, blue: 0.2), // Orange-red
-                        Color(red: 1.0, green: 0.5, blue: 0.2)  // Vibrant orange
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                ))
+                    // Envelope base (conditional top layer)
+                    Rectangle()
+                        .fill(LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.87, green: 0.11, blue: 0.22), // #DE1C39
+                                Color(red: 0.94, green: 0.29, blue: 0.02)  // #F04A04
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
                 .frame(width: 280, height: 180)
                 .cornerRadius(12)
                 .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
@@ -163,8 +163,8 @@ struct EnvelopeFlap: View {
                 Triangle()
                     .fill(LinearGradient(
                         gradient: Gradient(colors: [
-                            Color(red: 0.95, green: 0.2, blue: 0.2), // Bright red
-                            Color(red: 0.9, green: 0.4, blue: 0.2)    // Orange-red
+                            Color(red: 0.87, green: 0.11, blue: 0.22), // #DE1C39
+                            Color(red: 0.94, green: 0.29, blue: 0.02)  // #F04A04
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
@@ -208,8 +208,15 @@ struct SlidingContent: View {
     let isOpen: Bool
     
     var body: some View {
-        Rectangle()
-            .fill(Color.blue)
+            Rectangle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.008, green: 0.196, blue: 0.408), // #023268
+                        Color(red: 0.012, green: 0.078, blue: 0.153)  // #031427
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
             .frame(width: 262, height: 162) // 280-18=262, 180-18=162 (9px from each side)
             .cornerRadius(8)
             .position(x: 150, y: isOpen ? -30.5 : 110) // 75% height when open: 162 * 0.75 = 121.5px visible above envelope top edge (y=10), so y = 10 - 121.5 = -111.5, adjusted to -30.5 for better positioning. Closed state: y = 110 to completely hide behind envelope
