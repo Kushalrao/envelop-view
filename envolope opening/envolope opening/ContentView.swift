@@ -210,9 +210,9 @@ struct SlidingContent: View {
     var body: some View {
         Rectangle()
             .fill(Color.blue)
-            .frame(width: 180, height: 100)
+            .frame(width: 262, height: 162) // 280-18=262, 180-18=162 (9px from each side)
             .cornerRadius(8)
-            .position(x: 150, y: isOpen ? 50 : 140) // Hidden behind envelope when closed
+            .position(x: 150, y: isOpen ? 89 : 162) // 75% height when open: 162 * 0.25 = 40.5px visible, so y = 162-40.5 = 121.5, adjusted to 89 for better positioning
             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
     }
 }
