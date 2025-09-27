@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @State private var isEnvelopeOpen = false
     @State private var dragOffset: CGFloat = 0
+    @State private var currentRotation: Double = 0
+    @State private var hasVibrated = false
     
     var body: some View {
         ZStack {
@@ -21,34 +24,70 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
             
-            VStack {
+        VStack {
                 Spacer()
                 
-                // Envelope View
-                EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset)
-                    .frame(width: 300, height: 200)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                dragOffset = value.translation.height
-                                
-                                // Real-time interaction - start opening when swiping up
-                                if !isEnvelopeOpen && value.translation.height < -50 {
-                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                        isEnvelopeOpen = true
+                        // Envelope View
+                        EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset, currentRotation: currentRotation)
+                            .frame(width: 300, height: 200)
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        dragOffset = value.translation.height
+                                        
+                                        // Calculate rotation based on drag progress
+                                        let dragProgress = abs(value.translation.height) / 100.0
+                                        let maxRotation: Double = 160
+                                        
+                                        if value.translation.height < 0 {
+                                            // Swiping up - opening
+                                            if !hasVibrated && dragProgress > 0.3 {
+                                                // Add haptic feedback when starting to open
+                                                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                                                impactFeedback.impactOccurred()
+                                                hasVibrated = true
+                                            }
+                                            
+                                            // Real-time rotation during swipe up
+                                            currentRotation = min(dragProgress * maxRotation, maxRotation)
+                                            
+                                            // Complete opening if threshold reached
+                                            if !isEnvelopeOpen && dragProgress > 0.5 {
+                                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                                    isEnvelopeOpen = true
+                                                    currentRotation = maxRotation
+                                                }
+                                            }
+                                        } else {
+                                            // Swiping down - closing
+                                            if isEnvelopeOpen {
+                                                // Real-time rotation during swipe down
+                                                currentRotation = max(maxRotation - (dragProgress * maxRotation), 0)
+                                                
+                                                // Complete closing if threshold reached
+                                                if dragProgress > 0.5 {
+                                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                                        isEnvelopeOpen = false
+                                                        currentRotation = 0
+                                                        hasVibrated = false
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
-                                } else if isEnvelopeOpen && value.translation.height > 50 {
-                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                        isEnvelopeOpen = false
+                                    .onEnded { value in
+                                        // Reset states when gesture ends
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                            dragOffset = 0
+                                            if isEnvelopeOpen {
+                                                currentRotation = 160
+                                            } else {
+                                                currentRotation = 0
+                                                hasVibrated = false
+                                            }
+                                        }
                                     }
-                                }
-                            }
-                            .onEnded { value in
-                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                    dragOffset = 0
-                                }
-                            }
-                    )
+                            )
                 
                 Spacer()
             }
@@ -59,14 +98,19 @@ struct ContentView: View {
 struct EnvelopeView: View {
     let isOpen: Bool
     let dragOffset: CGFloat
+    let currentRotation: Double
     
     var body: some View {
         ZStack {
-            // Sliding content that comes out when opening (behind envelope)
+            // Blue rectangle that comes out (middle layer when open)
             SlidingContent(isOpen: isOpen)
-                .zIndex(0) // Behind the envelope
+                .zIndex(isOpen ? 1 : 0) // Middle when open, hidden when closed
             
-            // Envelope base
+            // Envelope flap (front when closed, back when open)
+            EnvelopeFlap(isOpen: isOpen, dragOffset: dragOffset, currentRotation: currentRotation)
+                .zIndex(isOpen ? 0 : 2) // Back when open, front when closed
+            
+            // Envelope base (conditional top layer)
             Rectangle()
                 .fill(LinearGradient(
                     gradient: Gradient(colors: [
@@ -79,11 +123,7 @@ struct EnvelopeView: View {
                 .frame(width: 280, height: 180)
                 .cornerRadius(12)
                 .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
-                .zIndex(1) // Above sliding content
-            
-            // Envelope flap
-            EnvelopeFlap(isOpen: isOpen, dragOffset: dragOffset)
-                .zIndex(2) // Above envelope body
+                .zIndex(isOpen ? 2 : 1) // Top when open, middle when closed
             
             // Triangular tab detail
             if !isOpen {
@@ -101,6 +141,7 @@ struct EnvelopeView: View {
 struct EnvelopeFlap: View {
     let isOpen: Bool
     let dragOffset: CGFloat
+    let currentRotation: Double
     
     var body: some View {
         Triangle()
@@ -116,12 +157,11 @@ struct EnvelopeFlap: View {
             .position(x: 150, y: 75)
             .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
             .rotation3DEffect(
-                .degrees(isOpen ? 160 : 0),
+                .degrees(currentRotation),
                 axis: (x: 1, y: 0, z: 0),
                 anchor: UnitPoint(x: 0.5, y: 0.05),
                 perspective: 0.3
             )
-            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
     }
 }
 
