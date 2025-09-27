@@ -212,7 +212,7 @@ struct SlidingContent: View {
             .fill(Color.blue)
             .frame(width: 262, height: 162) // 280-18=262, 180-18=162 (9px from each side)
             .cornerRadius(8)
-            .position(x: 150, y: isOpen ? -30.5 : 162) // 75% height when open: 162 * 0.75 = 121.5px visible above envelope top edge (y=10), so y = 10 - 121.5 = -111.5, adjusted to -30.5 for better positioning
+            .position(x: 150, y: isOpen ? -30.5 : 200) // 75% height when open: 162 * 0.75 = 121.5px visible above envelope top edge (y=10), so y = 10 - 121.5 = -111.5, adjusted to -30.5 for better positioning. Closed state: y = 200 to completely hide behind envelope
             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
     }
 }
