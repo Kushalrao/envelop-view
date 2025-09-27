@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var currentRotation: Double = 0
     @State private var lastHapticProgress: Double = 0
+    @State private var isBlueRectangleExtended = false // New state for blue rectangle extension
+    @State private var blueRectangleAnimationStage = 0 // 0: closed, 1: open, 2: extended (up), 3: extended (down)
     
     var body: some View {
         ZStack {
@@ -24,7 +26,7 @@ struct ContentView: View {
                 Spacer()
                 
                         // Envelope View
-                        EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset, currentRotation: currentRotation)
+                        EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset, currentRotation: currentRotation, isBlueRectangleExtended: $isBlueRectangleExtended, blueRectangleAnimationStage: $blueRectangleAnimationStage)
                             .frame(width: 300, height: 200)
                             .gesture(
                                 DragGesture()
@@ -59,6 +61,7 @@ struct ContentView: View {
                                                 withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                                     isEnvelopeOpen = true
                                                     currentRotation = maxRotation
+                                                    blueRectangleAnimationStage = 1 // Set to open stage
                                                 }
                                             }
                                         } else {
@@ -86,6 +89,8 @@ struct ContentView: View {
                                                         isEnvelopeOpen = false
                                                         currentRotation = 0
                                                         lastHapticProgress = 0
+                                                        isBlueRectangleExtended = false // Reset blue rectangle extension when closing
+                                                        blueRectangleAnimationStage = 0 // Reset animation stage
                                                     }
                                                 }
                                             }
@@ -100,6 +105,8 @@ struct ContentView: View {
                                                 currentRotation = 160
                                             } else {
                                                 currentRotation = 0
+                                                isBlueRectangleExtended = false // Reset blue rectangle extension when envelope is closed
+                                                blueRectangleAnimationStage = 0 // Reset animation stage
                                             }
                                         }
                                     }
@@ -115,12 +122,32 @@ struct EnvelopeView: View {
     let isOpen: Bool
     let dragOffset: CGFloat
     let currentRotation: Double
+    @Binding var isBlueRectangleExtended: Bool
+    @Binding var blueRectangleAnimationStage: Int
     
     var body: some View {
         ZStack {
             // Blue rectangle that comes out (middle layer when open)
-            SlidingContent(isOpen: isOpen)
-                .zIndex(isOpen ? 1 : 0) // Middle when open, hidden when closed
+            SlidingContent(
+                isOpen: isOpen, 
+                isExtended: isBlueRectangleExtended,
+                animationStage: blueRectangleAnimationStage,
+                onExtensionTriggered: {
+                    // Start two-stage animation: first up, then down
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0.1)) {
+                        blueRectangleAnimationStage = 2 // Go up first
+                    }
+                    
+                    // After a short delay, go down
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.6, blendDuration: 0.1)) {
+                            blueRectangleAnimationStage = 3 // Then go down
+                            isBlueRectangleExtended = true
+                        }
+                    }
+                }
+            )
+            .zIndex(isBlueRectangleExtended ? 4 : (isOpen ? 1 : 0)) // Front when extended, middle when open, hidden when closed
             
             // Envelope flap (front when closed, back when open)
             EnvelopeFlap(isOpen: isOpen, dragOffset: dragOffset, currentRotation: currentRotation)
@@ -206,21 +233,53 @@ struct EnvelopeContent: View {
 
 struct SlidingContent: View {
     let isOpen: Bool
+    let isExtended: Bool
+    let animationStage: Int
+    let onExtensionTriggered: () -> Void
     
     var body: some View {
-            Rectangle()
-                .fill(LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.008, green: 0.196, blue: 0.408), // #023268
-                        Color(red: 0.012, green: 0.078, blue: 0.153)  // #031427
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                ))
+        Rectangle()
+            .fill(LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.008, green: 0.196, blue: 0.408), // #023268
+                    Color(red: 0.012, green: 0.078, blue: 0.153)  // #031427
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            ))
             .frame(width: 262, height: 162) // 280-18=262, 180-18=162 (9px from each side)
             .cornerRadius(8)
-            .position(x: 150, y: isOpen ? -30.5 : 110) // 75% height when open: 162 * 0.75 = 121.5px visible above envelope top edge (y=10), so y = 10 - 121.5 = -111.5, adjusted to -30.5 for better positioning. Closed state: y = 110 to completely hide behind envelope
+            .position(x: 150, y: getPosition()) // Dynamic position based on state
+            .scaleEffect(isExtended ? 1.4 : 1.0) // Scale up to 140% when extended
             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
+            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: animationStage)
+            .gesture(
+                // Only enable gesture when envelope is open and rectangle is visible
+                isOpen && !isExtended ? 
+                DragGesture()
+                    .onEnded { value in
+                        // Only trigger extension on upward swipe
+                        if value.translation.height < -50 {
+                            onExtensionTriggered()
+                        }
+                    }
+                : nil
+            )
+    }
+    
+    private func getPosition() -> CGFloat {
+        switch animationStage {
+        case 0: // Closed
+            return 110
+        case 1: // Open (100% visible)
+            return -71
+        case 2: // Extended - go up 100px
+            return -71 - 100 // Go up 100px from open position
+        case 3: // Extended - go down 250px from up position
+            return -71 - 100 + 250 // Up 100px, then down 250px = net down 150px
+        default:
+            return isOpen ? -71 : 110
+        }
     }
 }
 
