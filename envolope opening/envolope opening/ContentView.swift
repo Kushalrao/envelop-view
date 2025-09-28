@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import CoreMotion // Added for gyroscope
 
 struct ContentView: View {
     @State private var isEnvelopeOpen = false
@@ -15,20 +16,37 @@ struct ContentView: View {
     @State private var lastHapticProgress: Double = 0
     @State private var isBlueRectangleExtended = false // New state for blue rectangle extension
     @State private var blueRectangleAnimationStage = 0 // 0: closed, 1: open, 2: extended (up), 3: extended (down)
+    @State private var confettiTrigger = 0
+    
+    // Gyroscope states
+    @State private var gyroRotationX: Double = 0
+    @State private var gyroRotationY: Double = 0
+    @State private var gyroOffsetX: CGFloat = 0
+    @State private var gyroOffsetY: CGFloat = 0
+    @State private var motionManager = CMMotionManager()
     
     var body: some View {
         ZStack {
-            // Background - Explicitly white to override system theme
-            Color.white
-                .ignoresSafeArea()
+                    // Background - Custom color #F0F0EB
+                    Color(red: 0.94, green: 0.94, blue: 0.92) // #F0F0EB
+                        .ignoresSafeArea()
             
         VStack {
                 Spacer()
                 
                         // Envelope View
-                        EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset, currentRotation: currentRotation, isBlueRectangleExtended: $isBlueRectangleExtended, blueRectangleAnimationStage: $blueRectangleAnimationStage, isEnvelopeOpen: $isEnvelopeOpen, currentRotationBinding: $currentRotation)
+                        EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset, currentRotation: currentRotation, isBlueRectangleExtended: $isBlueRectangleExtended, blueRectangleAnimationStage: $blueRectangleAnimationStage, isEnvelopeOpen: $isEnvelopeOpen, currentRotationBinding: $currentRotation, confettiTrigger: $confettiTrigger, gyroRotationX: gyroRotationX, gyroRotationY: gyroRotationY, gyroOffsetX: gyroOffsetX, gyroOffsetY: gyroOffsetY)
                             .frame(width: 300, height: 200)
-                            .gesture(
+                            .rotation3DEffect(
+                                .degrees(gyroRotationY * 10), // Rotate based on device tilt
+                                axis: (x: 1, y: 0, z: 0)
+                            )
+                            .rotation3DEffect(
+                                .degrees(gyroRotationX * 10), // Rotate based on device tilt
+                                axis: (x: 0, y: 1, z: 0)
+                            )
+                            .offset(x: gyroOffsetX * 20, y: gyroOffsetY * 20) // Move based on device orientation
+                    .gesture(
                                 DragGesture()
                                     .onChanged { value in
                                         dragOffset = value.translation.height
@@ -62,6 +80,7 @@ struct ContentView: View {
                                                     isEnvelopeOpen = true
                                                     currentRotation = maxRotation
                                                     blueRectangleAnimationStage = 1 // Set to open stage
+                                                    confettiTrigger = 0 // Reset confetti trigger for new opening
                                                 }
                                                 
                                                 // Immediately trigger blue rectangle animation after envelope opens
@@ -76,6 +95,9 @@ struct ContentView: View {
                                                             blueRectangleAnimationStage = 3 // Then go down
                                                             isBlueRectangleExtended = true
                                                         }
+                                                        
+                                                        // Trigger confetti immediately when blue rectangle reaches stage 3
+                                                        confettiTrigger += 1
                                                     }
                                                 }
                                             }
@@ -106,6 +128,7 @@ struct ContentView: View {
                                                         lastHapticProgress = 0
                                                         isBlueRectangleExtended = false // Reset blue rectangle extension when closing
                                                         blueRectangleAnimationStage = 0 // Reset animation stage
+                                                        // Confetti will auto-hide
                                                     }
                                                 }
                                             }
@@ -122,6 +145,7 @@ struct ContentView: View {
                                                 currentRotation = 0
                                                 isBlueRectangleExtended = false // Reset blue rectangle extension when envelope is closed
                                                 blueRectangleAnimationStage = 0 // Reset animation stage
+                                                // Confetti will auto-hide
                                             }
                                         }
                                     }
@@ -129,7 +153,46 @@ struct ContentView: View {
                 
                 Spacer()
             }
+            
+                    // Simple confetti effect
+                    if confettiTrigger > 0 {
+                        ConfettiView()
+                            .allowsHitTesting(false)
+                    }
         }
+        .onAppear {
+            startGyroscope()
+        }
+        .onDisappear {
+            stopGyroscope()
+        }
+    }
+    
+    private func startGyroscope() {
+        guard motionManager.isDeviceMotionAvailable else { return }
+        
+        motionManager.deviceMotionUpdateInterval = 0.1 // Update 10 times per second
+        motionManager.startDeviceMotionUpdates(to: .main) { motion, error in
+            guard let motion = motion else { return }
+            
+            // Get rotation rates and gravity for subtle movement
+            let rotationX = motion.rotationRate.x
+            let rotationY = motion.rotationRate.y
+            let gravityX = motion.gravity.x
+            let gravityY = motion.gravity.y
+            
+            // Apply subtle rotation and movement
+            withAnimation(.easeOut(duration: 0.1)) {
+                gyroRotationX = rotationX * 0.5
+                gyroRotationY = rotationY * 0.5
+                gyroOffsetX = CGFloat(gravityX) * 0.3
+                gyroOffsetY = CGFloat(gravityY) * 0.3
+            }
+        }
+    }
+    
+    private func stopGyroscope() {
+        motionManager.stopDeviceMotionUpdates()
     }
 }
 
@@ -141,6 +204,13 @@ struct EnvelopeView: View {
     @Binding var blueRectangleAnimationStage: Int
     @Binding var isEnvelopeOpen: Bool
     @Binding var currentRotationBinding: Double
+    @Binding var confettiTrigger: Int
+    
+    // Gyroscope parameters
+    let gyroRotationX: Double
+    let gyroRotationY: Double
+    let gyroOffsetX: CGFloat
+    let gyroOffsetY: CGFloat
     
     var body: some View {
         ZStack {
@@ -155,7 +225,12 @@ struct EnvelopeView: View {
                 isEnvelopeOpen: $isEnvelopeOpen,
                 blueRectangleAnimationStage: $blueRectangleAnimationStage,
                 isBlueRectangleExtended: $isBlueRectangleExtended,
-                currentRotation: $currentRotationBinding
+                currentRotation: $currentRotationBinding,
+                confettiTrigger: $confettiTrigger,
+                gyroRotationX: gyroRotationX,
+                gyroRotationY: gyroRotationY,
+                gyroOffsetX: gyroOffsetX,
+                gyroOffsetY: gyroOffsetY
             )
             .zIndex(isBlueRectangleExtended ? 4 : (isOpen ? 1 : 0)) // Front when extended, middle when open, hidden when closed
             
@@ -250,23 +325,34 @@ struct SlidingContent: View {
     @Binding var blueRectangleAnimationStage: Int
     @Binding var isBlueRectangleExtended: Bool
     @Binding var currentRotation: Double
+    @Binding var confettiTrigger: Int
     
-    var body: some View {
-        Rectangle()
-            .fill(LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.008, green: 0.196, blue: 0.408), // #023268
-                    Color(red: 0.012, green: 0.078, blue: 0.153)  // #031427
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            ))
-            .frame(width: 262, height: 162) // 280-18=262, 180-18=162 (9px from each side)
-            .cornerRadius(8)
-            .position(x: 150, y: getPosition()) // Dynamic position based on state
-            .scaleEffect(isExtended ? 1.4 : 1.0) // Scale up to 140% when extended
-            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
-            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: animationStage)
+    // Gyroscope parameters
+    let gyroRotationX: Double
+    let gyroRotationY: Double
+    let gyroOffsetX: CGFloat
+    let gyroOffsetY: CGFloat
+    
+            var body: some View {
+                // Image only - no background
+                Image("framefor")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 250, height: 150)
+                    .cornerRadius(6)
+                    .position(x: 150, y: getPosition()) // Dynamic position based on state
+                    .scaleEffect(isExtended ? 1.6 : 1.2) // Scale up to 160% when extended, 120% when normal
+                    .rotation3DEffect(
+                        .degrees(gyroRotationY * 5), // Subtle rotation based on device tilt
+                        axis: (x: 1, y: 0, z: 0)
+                    )
+                    .rotation3DEffect(
+                        .degrees(gyroRotationX * 5), // Subtle rotation based on device tilt
+                        axis: (x: 0, y: 1, z: 0)
+                    )
+                    .offset(x: gyroOffsetX * 10, y: gyroOffsetY * 10) // Subtle movement based on device orientation
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: animationStage)
             .gesture(
                 // Add gesture to blue rectangle for closing interaction
                 isOpen && isExtended ? 
@@ -297,6 +383,7 @@ struct SlidingContent: View {
                                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                             isEnvelopeOpen = false
                                             currentRotation = 0 // Close the flap
+                                            // Confetti will auto-hide
                                         }
                                     }
                                 }
@@ -321,6 +408,83 @@ struct SlidingContent: View {
             return isOpen ? -71 : 110
         }
     }
+}
+
+// Simple confetti view
+struct ConfettiView: View {
+    @State private var particles: [ConfettiParticle] = []
+    
+    var body: some View {
+        ZStack {
+            ForEach(particles, id: \.id) { particle in
+                Circle()
+                    .fill(particle.color)
+                    .frame(width: particle.size, height: particle.size)
+                    .position(particle.position)
+                    .opacity(particle.opacity)
+            }
+        }
+        .onAppear {
+            createParticles()
+            animateParticles()
+        }
+    }
+    
+    private func createParticles() {
+        let colors: [Color] = [.red, .blue, .green, .yellow, .purple, .orange, .pink, .cyan]
+        
+        for i in 0..<150 {
+            // Create particles from left and right edges
+            let isFromLeft = i % 2 == 0
+            let startX = isFromLeft ? -50 : 450 // Start from left or right edge
+            let startY = CGFloat.random(in: 200...400) // Center area of screen
+            
+            let particle = ConfettiParticle(
+                id: i,
+                position: CGPoint(x: CGFloat(startX), y: startY),
+                color: colors.randomElement() ?? .red,
+                size: CGFloat.random(in: 6...12),
+                opacity: 1.0
+            )
+            particles.append(particle)
+        }
+    }
+    
+    private func animateParticles() {
+        // Single continuous animation with natural arc
+        withAnimation(.easeOut(duration: 2.0)) { // 2 seconds duration
+            for i in particles.indices {
+                // Move particles toward center and up first
+                let centerX: CGFloat = 200 // Center of screen
+                let targetX = centerX + CGFloat.random(in: -80...80)
+                particles[i].position.x = targetX
+                
+                // Create natural arc: up first, then down with horizontal drift
+                let upDistance = CGFloat.random(in: 650...650) // Fixed height at 650px
+                let horizontalDrift = CGFloat.random(in: -200...200)
+                let downDistance = CGFloat.random(in: 600...900) // Increased fall distance
+                
+                // Final position: up then down with drift
+                particles[i].position.y -= upDistance
+                particles[i].position.y += downDistance
+                particles[i].position.x += horizontalDrift
+                particles[i].opacity = 0.0
+            }
+        }
+        
+        // Reset after animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            particles.removeAll()
+        }
+    }
+}
+
+struct ConfettiParticle {
+    let id: Int
+    var position: CGPoint
+    let color: Color
+    let size: CGFloat
+    var opacity: Double
 }
 
 #Preview {
