@@ -26,7 +26,7 @@ struct ContentView: View {
                 Spacer()
                 
                         // Envelope View
-                        EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset, currentRotation: currentRotation, isBlueRectangleExtended: $isBlueRectangleExtended, blueRectangleAnimationStage: $blueRectangleAnimationStage)
+                        EnvelopeView(isOpen: isEnvelopeOpen, dragOffset: dragOffset, currentRotation: currentRotation, isBlueRectangleExtended: $isBlueRectangleExtended, blueRectangleAnimationStage: $blueRectangleAnimationStage, isEnvelopeOpen: $isEnvelopeOpen, currentRotationBinding: $currentRotation)
                             .frame(width: 300, height: 200)
                             .gesture(
                                 DragGesture()
@@ -62,6 +62,21 @@ struct ContentView: View {
                                                     isEnvelopeOpen = true
                                                     currentRotation = maxRotation
                                                     blueRectangleAnimationStage = 1 // Set to open stage
+                                                }
+                                                
+                                                // Immediately trigger blue rectangle animation after envelope opens
+                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0.1)) {
+                                                        blueRectangleAnimationStage = 2 // Go up first
+                                                    }
+                                                    
+                                                    // After a short delay, go down
+                                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.6, blendDuration: 0.1)) {
+                                                            blueRectangleAnimationStage = 3 // Then go down
+                                                            isBlueRectangleExtended = true
+                                                        }
+                                                    }
                                                 }
                                             }
                                         } else {
@@ -124,6 +139,8 @@ struct EnvelopeView: View {
     let currentRotation: Double
     @Binding var isBlueRectangleExtended: Bool
     @Binding var blueRectangleAnimationStage: Int
+    @Binding var isEnvelopeOpen: Bool
+    @Binding var currentRotationBinding: Double
     
     var body: some View {
         ZStack {
@@ -133,19 +150,12 @@ struct EnvelopeView: View {
                 isExtended: isBlueRectangleExtended,
                 animationStage: blueRectangleAnimationStage,
                 onExtensionTriggered: {
-                    // Start two-stage animation: first up, then down
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0.1)) {
-                        blueRectangleAnimationStage = 2 // Go up first
-                    }
-                    
-                    // After a short delay, go down
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.6, blendDuration: 0.1)) {
-                            blueRectangleAnimationStage = 3 // Then go down
-                            isBlueRectangleExtended = true
-                        }
-                    }
-                }
+                    // No longer needed - animation is now integrated into envelope gesture
+                },
+                isEnvelopeOpen: $isEnvelopeOpen,
+                blueRectangleAnimationStage: $blueRectangleAnimationStage,
+                isBlueRectangleExtended: $isBlueRectangleExtended,
+                currentRotation: $currentRotationBinding
             )
             .zIndex(isBlueRectangleExtended ? 4 : (isOpen ? 1 : 0)) // Front when extended, middle when open, hidden when closed
             
@@ -236,6 +246,10 @@ struct SlidingContent: View {
     let isExtended: Bool
     let animationStage: Int
     let onExtensionTriggered: () -> Void
+    @Binding var isEnvelopeOpen: Bool
+    @Binding var blueRectangleAnimationStage: Int
+    @Binding var isBlueRectangleExtended: Bool
+    @Binding var currentRotation: Double
     
     var body: some View {
         Rectangle()
@@ -254,13 +268,39 @@ struct SlidingContent: View {
             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isOpen)
             .animation(.spring(response: 0.4, dampingFraction: 0.7), value: animationStage)
             .gesture(
-                // Only enable gesture when envelope is open and rectangle is visible
-                isOpen && !isExtended ? 
+                // Add gesture to blue rectangle for closing interaction
+                isOpen && isExtended ? 
                 DragGesture()
                     .onEnded { value in
-                        // Only trigger extension on upward swipe
+                        // Only trigger reversal on upward swipe
                         if value.translation.height < -50 {
-                            onExtensionTriggered()
+                            // Trigger the reversal animation
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.6, blendDuration: 0.1)) {
+                                blueRectangleAnimationStage = 2 // Go back up
+                                isBlueRectangleExtended = false
+                            }
+                            
+                            // Then go from up position back to open position
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7, blendDuration: 0.1)) {
+                                    blueRectangleAnimationStage = 1 // Back to open position
+                                }
+                                
+                                // Immediately go to closed position, then close the envelope flap
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                        blueRectangleAnimationStage = 0 // Reset to closed
+                                    }
+                                    
+                                    // Close the envelope flap after blue rectangle is inside
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                            isEnvelopeOpen = false
+                                            currentRotation = 0 // Close the flap
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 : nil
