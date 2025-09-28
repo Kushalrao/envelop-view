@@ -28,7 +28,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
                     // Background - Custom color #F0F0EB
-                    Color(red: 0.94, green: 0.94, blue: 0.92) // #F0F0EB
+                    Color(red: 0.88, green: 0.87, blue: 0.78) // #E0DDC8
                         .ignoresSafeArea()
             
         VStack {
@@ -237,21 +237,33 @@ struct EnvelopeView: View {
             // Envelope flap (front when closed, back when open)
             EnvelopeFlap(isOpen: isOpen, dragOffset: dragOffset, currentRotation: currentRotation)
                 .zIndex(isOpen ? 0 : 2) // Back when open, front when closed
+                .scaleEffect(isOpen ? 0.35 : 1.0) // Scale down to 35% when open
             
                     // Envelope base (conditional top layer)
-                    Rectangle()
-                        .fill(LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 0.87, green: 0.11, blue: 0.22), // #DE1C39
-                                Color(red: 0.94, green: 0.29, blue: 0.02)  // #F04A04
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ))
-                .frame(width: 280, height: 180)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
-                .zIndex(isOpen ? 2 : 1) // Top when open, middle when closed
+                    ZStack {
+                        Rectangle()
+                            .fill(LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.87, green: 0.11, blue: 0.22), // #DE1C39
+                                    Color(red: 0.94, green: 0.29, blue: 0.02)  // #F04A04
+                                ]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ))
+                            .frame(width: 280, height: 180)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+                        
+                        // Logo at bottom center with 7px margin
+                        Image("logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 60, height: 30)
+                            .scaleEffect(2.4) // Apply 2.4x scaling
+                            .position(x: 140, y: 180 - 7 - 36) // Center horizontally, 7px from bottom + half scaled logo height (30*2.4/2 = 36)
+                    }
+                    .zIndex(isOpen ? 2 : 1) // Top when open, middle when closed
+                    .scaleEffect(isOpen ? 0.35 : 1.0) // Scale down to 35% when open
             
             // Triangular tab detail
             if !isOpen {
@@ -335,7 +347,7 @@ struct SlidingContent: View {
     
             var body: some View {
                 // Image only - no background
-                Image("framefor")
+                Image("newimage")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 250, height: 150)
@@ -360,10 +372,12 @@ struct SlidingContent: View {
                     .onEnded { value in
                         // Only trigger reversal on upward swipe
                         if value.translation.height < -50 {
-                            // Trigger the reversal animation
+                            // Trigger the reversal animation and scale up envelope with flap still up
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.6, blendDuration: 0.1)) {
                                 blueRectangleAnimationStage = 2 // Go back up
                                 isBlueRectangleExtended = false
+                                isEnvelopeOpen = false // Scale up envelope immediately with flap still up
+                                // currentRotation stays at 160 (flap remains open)
                             }
                             
                             // Then go from up position back to open position
@@ -372,19 +386,12 @@ struct SlidingContent: View {
                                     blueRectangleAnimationStage = 1 // Back to open position
                                 }
                                 
-                                // Immediately go to closed position, then close the envelope flap
+                                // Immediately go to closed position
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                                     withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                         blueRectangleAnimationStage = 0 // Reset to closed
-                                    }
-                                    
-                                    // Close the envelope flap after blue rectangle is inside
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                            isEnvelopeOpen = false
-                                            currentRotation = 0 // Close the flap
-                                            // Confetti will auto-hide
-                                        }
+                                        currentRotation = 0 // Close the flap after blue rectangle is fully back
+                                        // Confetti will auto-hide
                                     }
                                 }
                             }
